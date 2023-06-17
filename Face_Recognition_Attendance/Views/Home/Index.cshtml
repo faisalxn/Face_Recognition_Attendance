@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+		<title>Face detection</title>
+		<script src="~/js/camvas.js"></script>
+		<script src="~/js/pico.js"></script>
+        <script src="~/js/index.js"></script>
+		<script src="~/lib/jquery/dist/jquery.min.js"></script>
+    </head>
+	<body>
+		<canvas id="webcam-img-canvas" width="640" height="480"></canvas>
+		
+		<script>
+			var pythonApiRequestNotStartedYet = true;
+			var isAttendanceCompleted = false;
+			var lastTime = null;
+			var waitingIntervalAfterAttendance = 10000; // in milli seconds
+
+			function FaceDetected(){
+                if (isAttendanceCompleted == true) {
+                    
+                    if (new Date().getTime() < (lastTime + waitingIntervalAfterAttendance)) {
+                        return;
+                    }
+                    else {
+						isAttendanceCompleted = false;
+                        return;
+					}
+				}
+				
+                if (pythonApiRequestNotStartedYet == true) {
+                    pythonApiRequestNotStartedYet = false;
+
+					var canvas = document.getElementById('webcam-img-canvas');
+					var imgData = canvas.toDataURL('image/jpeg');
+                    var searchingDirectory = '@ViewBag.target_directory';
+                    var apiURL = '@ViewBag.pythonApiURL';
+
+					$.ajax({
+						url: apiURL,
+						type: "POST",
+						//async: false,
+						contentType : "application/json",
+						data: JSON.stringify(
+							{ 
+								frameData: imgData, 
+								targetDirectory: searchingDirectory 
+							}),
+						success: function (response) {
+                            if (response == "None") {
+								pythonApiRequestNotStartedYet = true;
+                                alert("Not Matched");
+                            }
+                            else if (response == "Zero") {
+								pythonApiRequestNotStartedYet = true;
+                                //alert("There is no face in camera");
+                            }
+                            else if (response == "Multiple") {
+								pythonApiRequestNotStartedYet = true;
+                                alert("There are multiple faces in camera");
+                            }
+                            else {
+                                AttedanceMarking(response);
+							}
+						},
+						error: function(jqXHR, textStatus, errorThrown) {
+						   console.log("Error in face recognition API calling");
+						}
+					});
+				}
+			}
+
+			function AttedanceMarking(fileName) {
+				$.ajax({
+					url: "/Home/AttendanceMarking",
+					type: "POST",
+					//async: false,
+					data: { fileName: fileName },
+					success: function (response) {
+                        if (response.success == true) {
+                            isAttendanceCompleted = true;
+                            pythonApiRequestNotStartedYet = true;
+                            lastTime = new Date().getTime();
+
+                            alert(response.message);
+						}
+
+					},
+					error: function() {
+						console.log("Error in attendance marking");
+					}
+				});
+			}
+			
+		</script>
+    </body>
+</html>
