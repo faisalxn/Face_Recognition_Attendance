@@ -16,7 +16,7 @@ namespace Face_Recognition_Attendance.Controllers
         public IActionResult Index()
         {
             ViewBag.target_directory = "E:/Others/face-recognition-python/Images";
-            ViewBag.pythonApiURL = "http://127.0.0.1:5000/process_frame";
+            ViewBag.baseApiURL = "http://127.0.0.1:5000/";
 
             return View();
         }

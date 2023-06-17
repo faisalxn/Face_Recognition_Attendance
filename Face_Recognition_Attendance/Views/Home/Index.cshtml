@@ -10,53 +10,77 @@
 	<body>
 		<canvas id="webcam-img-canvas" width="640" height="480"></canvas>
 		
-		<script>
+        <script>
+            var baseApiURL = '@ViewBag.baseApiURL';
 			var pythonApiRequestNotStartedYet = true;
 			var isAttendanceCompleted = false;
 			var lastTime = null;
 			var waitingIntervalAfterAttendance = 10000; // in milli seconds
+            var isSpoofingDetectionCompleted = false;
+            var isRealFace = false;
+			var frames = [];
 
-			function FaceDetected(){
+            function FaceDetected() {
+
+				if (isSpoofingDetectionCompleted == false) {
+                    var canvas = document.getElementById('webcam-img-canvas');
+					var imgData = canvas.toDataURL('image/jpeg');
+					frames.push(imgData);
+
+                    if (frames.length == 20) {
+                        SpoofingCheck();
+                    }
+
+                    return;
+                }
+
                 if (isAttendanceCompleted == true) {
-                    
+
                     if (new Date().getTime() < (lastTime + waitingIntervalAfterAttendance)) {
                         return;
                     }
                     else {
-						isAttendanceCompleted = false;
+                        isAttendanceCompleted = false;
+                        isSpoofingDetectionCompleted = false;
                         return;
 					}
 				}
-				
-                if (pythonApiRequestNotStartedYet == true) {
+
+                if (pythonApiRequestNotStartedYet == true && isRealFace == true) {
                     pythonApiRequestNotStartedYet = false;
+                    isRealFace = false;
 
 					var canvas = document.getElementById('webcam-img-canvas');
 					var imgData = canvas.toDataURL('image/jpeg');
                     var searchingDirectory = '@ViewBag.target_directory';
-                    var apiURL = '@ViewBag.pythonApiURL';
 
 					$.ajax({
-						url: apiURL,
+                        url: baseApiURL + "process_frame",
 						type: "POST",
 						//async: false,
 						contentType : "application/json",
 						data: JSON.stringify(
-							{ 
-								frameData: imgData, 
-								targetDirectory: searchingDirectory 
+							{
+								frameData: imgData,
+								targetDirectory: searchingDirectory
 							}),
 						success: function (response) {
                             if (response == "None") {
-								pythonApiRequestNotStartedYet = true;
+                                pythonApiRequestNotStartedYet = true;
+                                isSpoofingDetectionCompleted = false;
+
                                 alert("Not Matched");
                             }
                             else if (response == "Zero") {
-								pythonApiRequestNotStartedYet = true;
+                                pythonApiRequestNotStartedYet = true;
+                                isSpoofingDetectionCompleted = false;
+
                                 //alert("There is no face in camera");
                             }
                             else if (response == "Multiple") {
-								pythonApiRequestNotStartedYet = true;
+                                pythonApiRequestNotStartedYet = true;
+                                isSpoofingDetectionCompleted = false;
+
                                 alert("There are multiple faces in camera");
                             }
                             else {
@@ -69,6 +93,34 @@
 					});
 				}
 			}
+
+            function SpoofingCheck() {
+                $.ajax({
+                    url: baseApiURL + "spoofing_detection_multiple_images",
+                    type: "POST",
+                    //async: false,
+                    contentType: "application/json",
+                    data: JSON.stringify(
+                        {
+                            images: frames
+                        }),
+                    success: function (response) {
+                        frames = [];
+
+                        if (response == "Spoof") {
+                            alert("This is not a live face");
+                        }
+                        else if (response == "Real") {
+                            isRealFace = true;
+                            isSpoofingDetectionCompleted = true;
+                        }
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        frames = [];
+                        console.log("Error in face spoofing detection API calling");
+                    }
+                });
+            }
 
 			function AttedanceMarking(fileName) {
 				$.ajax({
@@ -91,7 +143,7 @@
 					}
 				});
 			}
-			
-		</script>
+
+        </script>
     </body>
 </html>
